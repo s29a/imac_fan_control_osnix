@@ -66,7 +66,18 @@ let
     log "Initializing sensors for iMac 12,2..."
     for name in "''${!SENSOR_PATHS[@]}"; do
       path="''${SENSOR_PATHS[$name]}"
-      if [[ "$path" == SMC:* ]]; then
+
+      if [[ "$path" == "CORETEMP" ]]; then
+        actual=$(grep -l "coretemp" /sys/class/hwmon/hwmon*/name | sed 's/name/temp1_input/' | head -n1)
+        if [ -n "$actual" ]; then
+          SENSOR_PATHS["$name"]="$actual"
+          log "Auto-discovered CPU coretemp at $actual"
+        else
+          log "CRITICAL: coretemp driver not found in /sys/class/hwmon/"
+          exit 1
+        fi
+
+      elif [[ "$path" == SMC:* ]]; then
         code=''${path#SMC:}
         actual=$(find_smc_path "$code")
         if [ -z "$actual" ]; then

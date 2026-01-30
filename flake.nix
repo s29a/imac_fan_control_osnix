@@ -11,8 +11,13 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          config.allowUnfree = true;
+          config = {
+            allowUnfree = true;
+            nvidia.acceptLicense = true;
+          };
         };
+        nvidia_driver = pkgs.linuxPackages.nvidia_x11_legacy470;
+        nvidia_sdk = pkgs.cudaPackages.cuda_nvml_dev;
       in
       {
         # Среда для разработки (nix develop)
@@ -25,13 +30,16 @@
             gdb
           ];
           buildInputs = with pkgs; [
-            linuxPackages.nvidia_x11 # Заголовки и либы NVML
+            nvidia_driver
+            nvidia_sdk
           ];
 
           shellHook = ''
             echo "--- iMac Fan Control CPP Dev Shell ---"
-            # Генерируем базу данных команд для Neovim
+            export NVML_HEADERS="${nvidia_sdk}/include"
+            export NVML_LIBS="${nvidia_driver}/lib"
             if [ -f "CMakeLists.txt" ]; then
+              rm -rf build/CMakeCache.txt
               cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
               ln -sf build/compile_commands.json .
             fi
@@ -44,7 +52,7 @@
           version = "0.2.0";
           src = ./.;
           nativeBuildInputs = with pkgs; [ cmake pkg-config ];
-          buildInputs = with pkgs; [ linuxPackages.nvidia_x11 ];
+          buildInputs = with pkgs; [ linuxPackages.nvidia_x11_legacy470 ];
         };
       }
     );

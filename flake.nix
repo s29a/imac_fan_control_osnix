@@ -1,23 +1,59 @@
 {
-  description = "iMac advanced fan control (auto-mapping + asymmetric hysteresis)";
+  description = "iMac 12,2 Fan Control - C++ rewrite with PID and NVML";
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
   };
 
-  outputs = { self, nixpkgs }: {
-    nixosModules.imac-fan-control = import ./modules/imac-fan-control.nix;
-    # Convenience: example NixOS configuration
-    nixosConfigurations.example = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      modules = [
-        self.nixosModules.imac-fan-control
-        ({ config, ... }: {
-          services.imacFanControl.enable = true;
-        })
-      ];
-    };
-  };
+  outputs = { self, nixpkgs, flake-utils }:
+    flake-utils.lib.eachDefaultSystem (system:
+      let
+        pkgs = import nixpkgs {
+          inherit system;
+          config = {
+            allowUnfree = true;
+            nvidia.acceptLicense = true;
+          };
+        };
+        nvidia_driver = pkgs.linuxPackages.nvidia_x11_legacy470;
+        nvidia_sdk = pkgs.cudaPackages.cuda_nvml_dev;
+      in
+      {
+        # Среда для разработки (nix develop)
+        devShells.default = pkgs.mkShell {
+          nativeBuildInputs = with pkgs; [
+            gcc
+            cmake
+            pkg-config
+            clang-tools # Для LSP (clangd) в Neovim
+            gdb
+          ];
+          buildInputs = with pkgs; [
+            nvidia_driver
+            nvidia_sdk
+          ];
+
+          shellHook = ''
+            echo "--- iMac Fan Control CPP Dev Shell ---"
+            export NVML_HEADERS="${nvidia_sdk}/include"
+            export NVML_LIBS="${nvidia_driver}/lib"
+            if [ -f "CMakeLists.txt" ]; then
+              rm -rf build/CMakeCache.txt
+              cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+              ln -sf build/compile_commands.json .
+            fi
+          '';
+        };
+
+        # Пакет для установки (nix build)
+        packages.default = pkgs.stdenv.mkDerivation {
+          pname = "imac-fan-control";
+          version = "0.2.0";
+          src = ./.;
+          nativeBuildInputs = with pkgs; [ cmake pkg-config ];
+          buildInputs = with pkgs; [ linuxPackages.nvidia_x11_legacy470 ];
+        };
+      }
+    );
 }
-
-
-

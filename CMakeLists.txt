@@ -27,6 +27,7 @@ endif()
 
 add_executable(imac-fan-control 
     src/main.cpp
+    src/sensors.cpp
 )
 
 target_include_directories(imac-fan-control PRIVATE ${NVML_INCLUDE_DIR})
